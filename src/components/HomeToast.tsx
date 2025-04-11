@@ -1,6 +1,6 @@
 "use client";
 
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { useEffect } from "react";
 
@@ -43,7 +43,6 @@ function isToastType(value: string | null): value is ToastType {
 
 function HomeToast() {
   const toastType = useSearchParams().get("toastType");
-  const { toast } = useToast();
 
   const removeUrlParam = () => {
     const searchParams = new URLSearchParams(window.location.search);
@@ -54,8 +53,8 @@ function HomeToast() {
 
   useEffect(() => {
     if (isToastType(toastType)) {
-      toast({
-        ...TOAST_CONFIG[toastType],
+      toast(TOAST_CONFIG[toastType].title, {
+        description: TOAST_CONFIG[toastType].description,
       });
 
       removeUrlParam();
