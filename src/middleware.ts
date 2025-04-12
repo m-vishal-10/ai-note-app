@@ -12,9 +12,7 @@ export const config = {
 };
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({
-    request,
-  });
+  let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
     process.env.SUPABASE_URL!,
@@ -28,9 +26,7 @@ export async function updateSession(request: NextRequest) {
           cookiesToSet.forEach(({ name, value }) =>
             request.cookies.set(name, value),
           );
-          supabaseResponse = NextResponse.next({
-            request,
-          });
+          supabaseResponse = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options),
           );
@@ -39,51 +35,49 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin;
   const isAuthRoute =
     request.nextUrl.pathname === "/login" ||
     request.nextUrl.pathname === "/sign-up";
 
-  if (isAuthRoute) {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      return NextResponse.redirect(
-        new URL("/", process.env.NEXT_PUBLIC_BASE_URL),
-      );
-    }
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (isAuthRoute && user) {
+    return NextResponse.redirect(new URL("/", baseUrl));
   }
 
   const { searchParams, pathname } = new URL(request.url);
 
-  if (!searchParams.get("noteId") && pathname === "/") {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-
-    if (user) {
-      const { newestNoteId } = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/fetch-newest-note?userId=${user.id}`,
-      ).then((res) => res.json());
+  if (!searchParams.get("noteId") && pathname === "/" && user) {
+    try {
+      const res = await fetch(`${baseUrl}/api/fetch-newest-note?userId=${user.id}`);
+      const { newestNoteId } = await res.json();
 
       if (newestNoteId) {
         const url = request.nextUrl.clone();
         url.searchParams.set("noteId", newestNoteId);
         return NextResponse.redirect(url);
-      } else {
-        const { noteId } = await fetch(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/create-new-note?userId=${user.id}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
-        ).then((res) => res.json());
-        const url = request.nextUrl.clone();
-        url.searchParams.set("noteId", noteId);
-        return NextResponse.redirect(url);
       }
+    } catch (err) {
+      console.error("Failed to fetch newest note:", err);
+    }
+
+    try {
+      const res = await fetch(`${baseUrl}/api/create-new-note?userId=${user.id}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      const { noteId } = await res.json();
+
+      const url = request.nextUrl.clone();
+      url.searchParams.set("noteId", noteId);
+      return NextResponse.redirect(url);
+    } catch (err) {
+      console.error("Failed to create note:", err);
     }
   }
 
