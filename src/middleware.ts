@@ -12,7 +12,9 @@ export const config = {
 };
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next();
+  let supabaseResponse = NextResponse.next({
+    request,
+  });
 
   const supabase = createServerClient(
     process.env.SUPABASE_URL!,
@@ -23,64 +25,66 @@ export async function updateSession(request: NextRequest) {
           return request.cookies.getAll();
         },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            supabaseResponse.cookies.set(name, value, options);
+          cookiesToSet.forEach(({ name, value }) =>
+            request.cookies.set(name, value),
+          );
+          supabaseResponse = NextResponse.next({
+            request,
           });
+          cookiesToSet.forEach(({ name, value, options }) =>
+            supabaseResponse.cookies.set(name, value, options),
+          );
         },
       },
-    }
+    },
   );
 
   const isAuthRoute =
     request.nextUrl.pathname === "/login" ||
     request.nextUrl.pathname === "/sign-up";
 
-  try {
+  if (isAuthRoute) {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (user) {
+      return NextResponse.redirect(
+        new URL("/", process.env.NEXT_PUBLIC_BASE_URL),
+      );
+    }
+  }
+
+  const { searchParams, pathname } = new URL(request.url);
+
+  if (!searchParams.get("noteId") && pathname === "/") {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (isAuthRoute && user) {
-      return NextResponse.redirect(
-        new URL("/", process.env.NEXT_PUBLIC_BASE_URL)
-      );
-    }
+    if (user) {
+      const { newestNoteId } = await fetch(
+        `${process.env.NEXT_PUBLIC_BASE_URL}/api/fetch-newest-note?userId=${user.id}`,
+      ).then((res) => res.json());
 
-    const { searchParams, pathname } = new URL(request.url);
-
-    if (!searchParams.get("noteId") && pathname === "/" && user) {
-      try {
-        const fetchNewest = await fetch(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/fetch-newest-note?userId=${user.id}`
-        );
-        const { newestNoteId } = await fetchNewest.json();
-
+      if (newestNoteId) {
         const url = request.nextUrl.clone();
-        if (newestNoteId) {
-          url.searchParams.set("noteId", newestNoteId);
-        } else {
-          const createNote = await fetch(
-            `${process.env.NEXT_PUBLIC_BASE_URL}/api/create-new-note?userId=${user.id}`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-              },
-            }
-          );
-          const { noteId } = await createNote.json();
-          url.searchParams.set("noteId", noteId);
-        }
-
+        url.searchParams.set("noteId", newestNoteId);
         return NextResponse.redirect(url);
-      } catch (error) {
-        console.error("Note redirection error:", error);
-        return supabaseResponse;
+      } else {
+        const { noteId } = await fetch(
+          `${process.env.NEXT_PUBLIC_BASE_URL}/api/create-new-note?userId=${user.id}`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          },
+        ).then((res) => res.json());
+        const url = request.nextUrl.clone();
+        url.searchParams.set("noteId", noteId);
+        return NextResponse.redirect(url);
       }
     }
-  } catch (error) {
-    console.error("Supabase auth error:", error);
-    return supabaseResponse;
   }
 
   return supabaseResponse;
