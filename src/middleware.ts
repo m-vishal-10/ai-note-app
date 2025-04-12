@@ -12,43 +12,39 @@ export const config = {
 };
 
 export async function updateSession(request: NextRequest) {
-  let supabaseResponse = NextResponse.next({ request });
+  let supabaseResponse = NextResponse.next();
 
-  const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value),
-          );
-          supabaseResponse = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options),
-          );
-        },
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SUPABASE_ANON_KEY = process.env.SUPABASE_ANON_KEY;
+
+  if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+    console.error("Missing Supabase env vars");
+    return supabaseResponse;
+  }
+
+  const supabase = createServerClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) =>
+          supabaseResponse.cookies.set(name, value, options),
+        );
       },
     },
-  );
-
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin;
-  const isAuthRoute =
-    request.nextUrl.pathname === "/login" ||
-    request.nextUrl.pathname === "/sign-up";
+  });
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (isAuthRoute && user) {
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || request.nextUrl.origin;
+  const { pathname, searchParams } = request.nextUrl;
+
+  if ((pathname === "/login" || pathname === "/sign-up") && user) {
     return NextResponse.redirect(new URL("/", baseUrl));
   }
-
-  const { searchParams, pathname } = new URL(request.url);
 
   if (!searchParams.get("noteId") && pathname === "/" && user) {
     try {
@@ -61,15 +57,13 @@ export async function updateSession(request: NextRequest) {
         return NextResponse.redirect(url);
       }
     } catch (err) {
-      console.error("Failed to fetch newest note:", err);
+      console.error("fetch-newest-note failed:", err);
     }
 
     try {
       const res = await fetch(`${baseUrl}/api/create-new-note?userId=${user.id}`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
       });
       const { noteId } = await res.json();
 
@@ -77,7 +71,7 @@ export async function updateSession(request: NextRequest) {
       url.searchParams.set("noteId", noteId);
       return NextResponse.redirect(url);
     } catch (err) {
-      console.error("Failed to create note:", err);
+      console.error("create-new-note failed:", err);
     }
   }
 
