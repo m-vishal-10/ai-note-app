@@ -1,37 +1,40 @@
-// lib/auth/server.ts
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 
 export async function createClient() {
-  // Wait for the cookie store to resolve since cookies() is async
-  const cookieStore = await cookies()
+  const cookieStore = await cookies();
 
-  return createServerClient(
+  const client = createServerClient(
     process.env.SUPABASE_URL!,
     process.env.SUPABASE_ANON_KEY!,
     {
       cookies: {
-        // Get all cookies (async)
-        getAll: async () => {
-          return await cookieStore.getAll()
+        getAll() {
+          return cookieStore.getAll();
         },
-        // Set cookies (async)
-        setAll: async (cookiesToSet) => {
-          cookiesToSet.forEach(async ({ name, value, options }) => {
-            await cookieStore.set(name, value, options)
-          })
+        setAll(cookiesToSet) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options),
+            );
+          } catch {}
         },
       },
-    }
-  )
+    },
+  );
+
+  return client;
 }
 
 export async function getUser() {
-  const client = await createClient()
-  const { data, error } = await client.auth.getUser()
-  if (error) {
-    console.error('Supabase auth error:', error)
-    return null
+  const { auth } = await createClient();
+
+  const userObject = await auth.getUser();
+
+  if (userObject.error) {
+    console.error(userObject.error);
+    return null;
   }
-  return data.user
+
+  return userObject.data.user;
 }
