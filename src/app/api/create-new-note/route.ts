@@ -1,18 +1,45 @@
+// src/app/api/create-new-note/route.ts
 import { prisma } from "@/db/prisma";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 
-export async function POST(request: NextRequest) {
-  const { searchParams } = new URL(request.url);
-  const userId = searchParams.get("userId") || "";
+export async function POST(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
 
-  const { id } = await prisma.note.create({
-    data: {
-      authorId: userId,
-      text: "",
-    },
-  });
+    if (!userId) {
+      return NextResponse.json(
+        { error: "User ID is required" },
+        { status: 400 }
+      );
+    }
 
-  return NextResponse.json({
-    noteId: id,
-  });
+    // Verify user exists
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { error: "User not found" },
+        { status: 404 }
+      );
+    }
+
+    // Create new note
+    const note = await prisma.note.create({
+      data: {
+        authorId: userId,
+        text: "",
+      },
+    });
+
+    return NextResponse.json({ noteId: note.id });
+  } catch (error) {
+    console.error("Error creating note:", error);
+    return NextResponse.json(
+      { error: "Internal Server Error" },
+      { status: 500 }
+    );
+  }
 }
