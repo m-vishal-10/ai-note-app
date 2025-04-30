@@ -1,4 +1,5 @@
-FROM node:16
+# Use a Node.js version that is compatible with Next.js (version 18 or above)
+FROM node:18
 
 # Set the working directory inside the container
 WORKDIR /app
