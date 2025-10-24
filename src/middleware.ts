@@ -17,8 +17,8 @@ export async function updateSession(request: NextRequest) {
   });
 
   const supabase = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
@@ -57,33 +57,44 @@ export async function updateSession(request: NextRequest) {
   const { searchParams, pathname } = new URL(request.url);
 
   if (!searchParams.get("noteId") && pathname === "/") {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    try {
+      const {
+        data: { user },
+        error
+      } = await supabase.auth.getUser();
 
-    if (user) {
-      const { newestNoteId } = await fetch(
-        `${process.env.NEXT_PUBLIC_BASE_URL}/api/fetch-newest-note?userId=${user.id}`,
-      ).then((res) => res.json());
+      if (user && !error) {
+        try {
+          const { newestNoteId } = await fetch(
+            `${process.env.NEXT_PUBLIC_BASE_URL}/api/fetch-newest-note?userId=${user.id}`,
+          ).then((res) => res.json());
 
-      if (newestNoteId) {
-        const url = request.nextUrl.clone();
-        url.searchParams.set("noteId", newestNoteId);
-        return NextResponse.redirect(url);
-      } else {
-        const { noteId } = await fetch(
-          `${process.env.NEXT_PUBLIC_BASE_URL}/api/create-new-note?userId=${user.id}`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-            },
-          },
-        ).then((res) => res.json());
-        const url = request.nextUrl.clone();
-        url.searchParams.set("noteId", noteId);
-        return NextResponse.redirect(url);
+          if (newestNoteId) {
+            const url = request.nextUrl.clone();
+            url.searchParams.set("noteId", newestNoteId);
+            return NextResponse.redirect(url);
+          } else {
+            const { noteId } = await fetch(
+              `${process.env.NEXT_PUBLIC_BASE_URL}/api/create-new-note?userId=${user.id}`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                },
+              },
+            ).then((res) => res.json());
+            const url = request.nextUrl.clone();
+            url.searchParams.set("noteId", noteId);
+            return NextResponse.redirect(url);
+          }
+        } catch (apiError) {
+          console.error("API error in middleware:", apiError);
+          // Continue without redirecting if API calls fail
+        }
       }
+    } catch (authError) {
+      // Silently handle auth errors - user is not authenticated
+      console.debug("Auth not available in middleware");
     }
   }
 

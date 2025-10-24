@@ -4,13 +4,11 @@ import Link from "next/link";
 import { Button } from "./ui/button";
 import DarkModeToggle from "./DarkModeToggle";
 import LogOutButton from "./LogOutButton";
-import { getUser } from "@/auth/server";
 import { SidebarTrigger } from "./ui/sidebar";
 import { shadow } from "@/app/styles/utils";
+import ServerAuthWrapper from "./ServerAuthWrapper";
 
 async function Header() {
-  const user = await getUser();
-
   return (
     <header
       className="bg-popover relative flex h-24 w-full items-center justify-between px-3 sm:px-8"
@@ -35,23 +33,27 @@ async function Header() {
         </h1>
       </Link>
 
-      <div className="flex gap-4">
-        {user ? (
-          <LogOutButton />
-        ) : (
-          <>
-            <Button asChild>
-              <Link href="/sign-up" className="hidden sm:block">
-                Sign Up
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/login">Login</Link>
-            </Button>
-          </>
+      <ServerAuthWrapper>
+        {(user) => (
+          <div className="flex gap-4">
+            {user ? (
+              <LogOutButton />
+            ) : (
+              <>
+                <Button asChild>
+                  <Link href="/sign-up" className="hidden sm:block">
+                    Sign Up
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/login">Login</Link>
+                </Button>
+              </>
+            )}
+            <DarkModeToggle />
+          </div>
         )}
-        <DarkModeToggle />
-      </div>
+      </ServerAuthWrapper>
     </header>
   );
 }

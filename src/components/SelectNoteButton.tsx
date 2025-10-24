@@ -1,6 +1,6 @@
 "use client";
 
-import { Note } from "@prisma/client";
+import type { Note } from "@/types/ui";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { SidebarMenuButton } from "./ui/sidebar";
@@ -48,7 +48,7 @@ function SelectNoteButton({ note }: Props) {
           {noteText}
         </p>
         <p className="text-muted-foreground text-xs">
-          {note.updatedAt.toLocaleDateString()}
+          {new Date(note.updatedAt).toISOString().slice(0, 10)}
         </p>
       </Link>
     </SidebarMenuButton>

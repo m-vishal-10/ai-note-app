@@ -1,5 +1,5 @@
 // src/app/api/create-new-note/route.ts
-import { prisma } from "@/db/prisma";
+import { createClient } from "@/auth/server";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
@@ -14,25 +14,26 @@ export async function POST(request: Request) {
       );
     }
 
-    // Verify user exists
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-    });
-
-    if (!user) {
-      return NextResponse.json(
-        { error: "User not found" },
-        { status: 404 }
-      );
+    // Use auth user presence instead of custom users table
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user || user.id !== userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     // Create new note
-    const note = await prisma.note.create({
-      data: {
-        authorId: userId,
+    const { data: note, error: noteError } = await supabase
+      .from('notes')
+      .insert({
+        author_id: userId,
         text: "",
-      },
-    });
+      })
+      .select('id')
+      .single();
+
+    if (noteError) {
+      throw noteError;
+    }
 
     return NextResponse.json({ noteId: note.id });
   } catch (error) {

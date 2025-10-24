@@ -1,7 +1,6 @@
 "use server";
 
-import { getUser } from "@/auth/server";
-import { prisma } from "@/db/prisma";
+import { createClient, getUser } from "@/auth/server";
 import { handleError } from "@/lib/utils";
 import openai from "@/openai";
 import { ChatCompletionMessageParam } from "openai/resources/index.mjs";
@@ -11,13 +10,16 @@ export const createNoteAction = async (noteId: string) => {
     const user = await getUser();
     if (!user) throw new Error("You must be logged in to create a note");
 
-    await prisma.note.create({
-      data: {
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from('notes')
+      .insert({
         id: noteId,
-        authorId: user.id,
+        author_id: user.id,
         text: "",
-      },
-    });
+      });
+
+    if (error) throw error;
 
     return { errorMessage: null };
   } catch (error) {
@@ -30,10 +32,14 @@ export const updateNoteAction = async (noteId: string, text: string) => {
     const user = await getUser();
     if (!user) throw new Error("You must be logged in to update a note");
 
-    await prisma.note.update({
-      where: { id: noteId },
-      data: { text },
-    });
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from('notes')
+      .update({ text })
+      .eq('id', noteId)
+      .eq('author_id', user.id);
+
+    if (error) throw error;
 
     return { errorMessage: null };
   } catch (error) {
@@ -46,9 +52,14 @@ export const deleteNoteAction = async (noteId: string) => {
     const user = await getUser();
     if (!user) throw new Error("You must be logged in to delete a note");
 
-    await prisma.note.delete({
-      where: { id: noteId, authorId: user.id },
-    });
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from('notes')
+      .delete()
+      .eq('id', noteId)
+      .eq('author_id', user.id);
+
+    if (error) throw error;
 
     return { errorMessage: null };
   } catch (error) {
@@ -63,11 +74,14 @@ export const askAIAboutNotesAction = async (
   const user = await getUser();
   if (!user) throw new Error("You must be logged in to ask AI questions");
 
-  const notes = await prisma.note.findMany({
-    where: { authorId: user.id },
-    orderBy: { createdAt: "desc" },
-    select: { text: true, createdAt: true, updatedAt: true },
-  });
+  const supabase = await createClient();
+  const { data: notes, error } = await supabase
+    .from('notes')
+    .select('text, created_at, updated_at')
+    .eq('author_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (error) throw error;
 
   if (notes.length === 0) {
     return "You don't have any notes yet.";
@@ -77,8 +91,8 @@ export const askAIAboutNotesAction = async (
     .map((note) =>
       `
       Text: ${note.text}
-      Created at: ${note.createdAt}
-      Last updated: ${note.updatedAt}
+      Created at: ${note.created_at}
+      Last updated: ${note.updated_at}
       `.trim(),
     )
     .join("\n");

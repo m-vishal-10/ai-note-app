@@ -1,6 +1,6 @@
 "use client";
 
-import { Note } from "@prisma/client";
+import type { Note } from "@/types/ui";
 import {
   SidebarGroupContent as SidebarGroupContentShadCN,
   SidebarMenu,
@@ -51,6 +51,7 @@ function SidebarGroupContent({ notes }: Props) {
           placeholder="Search your notes..."
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
+          suppressHydrationWarning
         />
       </div>
 

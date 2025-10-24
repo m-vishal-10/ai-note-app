@@ -5,8 +5,8 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   const client = createServerClient(
-    process.env.SUPABASE_URL!,
-    process.env.SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
         getAll() {
@@ -17,7 +17,11 @@ export async function createClient() {
             cookiesToSet.forEach(({ name, value, options }) =>
               cookieStore.set(name, value, options),
             );
-          } catch {}
+          } catch {
+            // The `set` method was called from a Server Component.
+            // This can be ignored if you have middleware refreshing
+            // user sessions.
+          }
         },
       },
     },
@@ -27,14 +31,25 @@ export async function createClient() {
 }
 
 export async function getUser() {
-  const { auth } = await createClient();
+  try {
+    const supabase = await createClient();
+    const { data: { user }, error } = await supabase.auth.getUser();
 
-  const userObject = await auth.getUser();
+    if (error) {
+      // Only log if it's not a session missing error (which is normal for logged out users)
+      if (error.message !== 'Auth session missing!' && error.message !== 'Invalid JWT') {
+        console.error('Auth error:', error.message);
+      }
+      return null;
+    }
 
-  if (userObject.error) {
-    console.error(userObject.error);
+    return user;
+  } catch (error) {
+    // Only log unexpected errors
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    if (!errorMessage.includes('Auth session missing') && !errorMessage.includes('Invalid JWT')) {
+      console.error('Failed to get user:', error);
+    }
     return null;
   }
-
-  return userObject.data.user;
 }

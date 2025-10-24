@@ -37,9 +37,7 @@ function AuthForm({ type }: Props) {
       if (!errorMessage) {
         router.replace(`/?toastType=${type}`);
       } else {
-        toast("Error", {
-          description: errorMessage,
-        });
+        toast.error(errorMessage);
       }
     });
   };
