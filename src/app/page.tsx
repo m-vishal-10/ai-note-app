@@ -4,6 +4,7 @@ import HomeToast from "@/components/HomeToast";
 import NewNoteButton from "@/components/NewNoteButton";
 import NoteTextInput from "@/components/NoteTextInput";
 import ServerAuthWrapper from "@/components/ServerAuthWrapper";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,45 @@ async function HomePage({ searchParams }: Props) {
   const noteId = Array.isArray(noteIdParam)
     ? noteIdParam![0]
     : noteIdParam || "";
+
+  // If no noteId provided, handle redirection logic
+  if (!noteId) {
+    try {
+      const user = await getUser();
+      if (user) {
+        const supabase = await createClient();
+        
+        // Try to get the newest note
+        const { data: newestNote, error } = await supabase
+          .from("notes")
+          .select("id")
+          .eq("author_id", user.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .single();
+
+        if (!error && newestNote) {
+          redirect(`/?noteId=${newestNote.id}`);
+        } else {
+          // Create a new note if none exist
+          const { data: newNote, error: createError } = await supabase
+            .from("notes")
+            .insert({
+              author_id: user.id,
+              text: "",
+            })
+            .select("id")
+            .single();
+
+          if (!createError && newNote) {
+            redirect(`/?noteId=${newNote.id}`);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error handling note redirection:", error);
+    }
+  }
 
   return (
     <ServerAuthWrapper>
