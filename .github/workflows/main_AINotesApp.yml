@@ -1,7 +1,7 @@
 # Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
 # More GitHub Actions for Azure: https://github.com/Azure/actions
 
-name: Build and deploy container app to Azure Web App - AINotesApp
+name: Build and deploy Node.js app to Azure Web App - AINotesApp
 
 on:
   push:
@@ -14,24 +14,39 @@ jobs:
     runs-on: 'ubuntu-latest'
 
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
-
-    - name: Log in to registry
-      uses: docker/login-action@v2
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
       with:
-        registry: https://mcr.microsoft.com/
-        username: ${{ secrets.AzureAppService_ContainerUsername_76c052b24cf54726bdb1dd347f343bb1 }}
-        password: ${{ secrets.AzureAppService_ContainerPassword_622c9e5afffc464ab8bf304ba9c79130 }}
+        node-version: '20'
+        cache: 'npm'
 
-    - name: Build and push container image to registry
-      uses: docker/build-push-action@v3
+    - name: Install dependencies
+      run: npm ci
+
+    - name: Build application
+      run: npm run build
+
+    - name: Create deployment package
+      run: |
+        mkdir -p deploy
+        cp -r .next deploy/
+        cp -r public deploy/
+        cp -r src deploy/
+        cp package*.json deploy/
+        cp next.config.ts deploy/
+        cp tsconfig.json deploy/
+        cp components.json deploy/
+        cp eslint.config.mjs deploy/
+        cp postcss.config.mjs deploy/
+        cp next-env.d.ts deploy/
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
       with:
-        push: true
-        tags: mcr.microsoft.com/${{ secrets.AzureAppService_ContainerUsername_76c052b24cf54726bdb1dd347f343bb1 }}/appsvc/staticsite:${{ github.sha }}
-        file: ./Dockerfile
+        name: node-app
+        path: deploy/
 
   deploy:
     runs-on: ubuntu-latest
@@ -41,6 +56,12 @@ jobs:
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
 
     steps:
+    - name: Download build artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: node-app
+        path: deploy/
+
     - name: Deploy to Azure Web App
       id: deploy-to-webapp
       uses: azure/webapps-deploy@v2
@@ -48,4 +69,4 @@ jobs:
         app-name: 'AINotesApp'
         slot-name: 'production'
         publish-profile: ${{ secrets.AzureAppService_PublishProfile_5d009f08735d485780ab77fe782b702f }}
-        images: 'mcr.microsoft.com/${{ secrets.AzureAppService_ContainerUsername_76c052b24cf54726bdb1dd347f343bb1 }}/appsvc/staticsite:${{ github.sha }}'
+        package: deploy/
